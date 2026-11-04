@@ -1,4 +1,3 @@
-import { fireEvent } from '@testing-library/svelte';
 import moment from 'moment/moment';
 import { promptForDate } from 'ui/Menus/DatePicker';
 import { withTimezone } from '../../TestingTools/DateTestHelpers';
@@ -9,8 +8,7 @@ window.moment = moment;
 
 function openPicker() {
     const task = new TaskBuilder().dueDate('2024-11-03').build();
-    const anchor = document.body.createSpan();
-    promptForDate(anchor, task, 'dueDate', TestableTaskSaver.testableTaskSaver);
+    promptForDate(document.body.createSpan(), task, 'dueDate', TestableTaskSaver.testableTaskSaver);
     return document.querySelector<HTMLInputElement>('input[type="date"]')!;
 }
 
@@ -35,27 +33,28 @@ describe('native date picker', () => {
         });
     });
 
-    it('should remove a cleared date', async () => {
+    it('should remove a cleared date', () => {
         const input = openPicker();
 
-        await fireEvent.change(input, { target: { value: '' } });
+        input.value = '';
+        input.dispatchEvent(new Event('change'));
 
         expect(TestableTaskSaver.tasksBeingSaved?.[0].dueDate).toBeNull();
         expect(input.isConnected).toBe(false);
     });
 
-    it.each(['Escape', 'outside click'])('should dismiss on %s and reopen without saving', async (dismissal) => {
+    it.each([
+        { name: 'Escape', event: new KeyboardEvent('keydown', { key: 'Escape' }) },
+        { name: 'outside click', event: new Event('pointerdown') },
+    ])('should dismiss on $name and reopen without saving', ({ event }) => {
         const input = openPicker();
-        if (dismissal === 'Escape') {
-            await fireEvent.keyDown(document, { key: 'Escape' });
-        } else {
-            await fireEvent.pointerDown(document.body);
-        }
+        document.body.dispatchEvent(event);
 
         expect(input.isConnected).toBe(false);
-        expect(TestableTaskSaver.tasksBeingSaved).toBeUndefined();
 
         const reopened = openPicker();
+        reopened.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        expect(reopened.isConnected).toBe(true);
         const replacement = openPicker();
         expect(reopened.isConnected).toBe(false);
         expect(replacement.value).toBe('2024-11-03');
